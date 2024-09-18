@@ -1,40 +1,51 @@
-package com.example.myapplication
+package com.example.lab5
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import coil.compose.rememberImagePainter
-import com.example.myapplication.ui.theme.MyApplicationTheme
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.ui.layout.ContentScale
+import com.example.lab5.ui.theme.Lab5Theme
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
-            MyApplicationTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    FavoritesScreen(
-                        modifier = Modifier.padding(innerPadding)
-                    )
-                }
+            Lab5Theme {
+                val navController = rememberNavController()
+                EventNavigation(navController, "Luis Padilla")
             }
         }
     }
@@ -51,53 +62,40 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 @Preview(showBackground = true)
 @Composable
 fun GreetingPreview() {
-    MyApplicationTheme {
+    Lab5Theme {
         Greeting("Android")
     }
 }
 
 @Composable
-fun FavoritesScreen(modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxSize()) {
-        Text(
-            text = "TodoEvento",
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            fontSize = 24.sp,
-            textAlign = TextAlign.Center
-        )
-        Text(
-            text = "Your favorites",
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            fontSize = 20.sp
-        )
+fun FavoritesScreen(navController: NavHostController) {
+    val viewModel: EventViewModel = viewModel()
+    val favoriteEvents = viewModel.events.filter { it.favorite }
 
-        val items = listOf(
-            "Event 1" to "Supporting text for Event 1",
-            "Event 2" to "Supporting text for Event 2",
-            "Event 3" to "Supporting text for Event 3",
-            "Event 4" to "Supporting text for Event 4"
-        )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+    ) {
+        // Botón de "Back"
+        Button(onClick = { navController.navigate("eventList") }) {
+            Text("Back")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(text = "Your favorites")
+        Spacer(modifier = Modifier.height(8.dp))
 
-        LazyColumn(modifier = Modifier.padding(16.dp)) {
-            items(items.chunked(2)) { rowItems ->
-                Row(modifier = Modifier.fillMaxWidth()) {
-                    rowItems.forEach { (title, supportingText) ->
-                        Card(
-                            modifier = Modifier
-                                .weight(1f)
-                                .padding(8.dp),
-                            elevation = CardDefaults.cardElevation(4.dp)
-                        ) {
-                            Column(modifier = Modifier.padding(16.dp)) {
-                                Text(text = title, fontSize = 18.sp)
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Text(text = supportingText)
-                            }
-                        }
+        if (favoriteEvents.isEmpty()) {
+            Text(text = "No favorites found.")
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(8.dp)
+            ) {
+                items(favoriteEvents) { event ->
+                    FavoriteItem(event) {
+                        navController.navigate("eventDetail/${event.id}")
                     }
                 }
             }
@@ -105,137 +103,133 @@ fun FavoritesScreen(modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
-fun NotificationsScreen() {
-    val notifications = listOf(
-        NotificationData("https://example.com/image1.jpg", "New event added", "Don't miss the latest event in your area."),
-        NotificationData("https://example.com/image2.jpg", "Event reminder", "Your favorite event starts in 2 hours."),
-        NotificationData("https://example.com/image3.jpg", "Event update", "The event location has been changed."),
-        NotificationData("https://example.com/image4.jpg", "Event canceled", "Unfortunately, the event has been canceled.")
-    )
 
-    LazyColumn(modifier = Modifier.padding(16.dp)) {
-        items(notifications) { notification ->
-            NotificationItem(notification)
-        }
-    }
-}
+
 
 @Composable
-fun NotificationItem(notification: NotificationData) {
-    Row(modifier = Modifier
-        .fillMaxWidth()
-        .padding(vertical = 8.dp)) {
-
-        Image(
-            painter = rememberImagePainter(notification.imageUrl),
-            contentDescription = null,
+fun FavoriteItem(event: Event, onClick: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier
+            .padding(8.dp)
+            .clickable(onClick = onClick)
+    ) {
+        Column(
             modifier = Modifier
-                .size(48.dp)
-                .padding(end = 16.dp),
-            contentScale = ContentScale.Crop
-        )
-
-        Column {
-            Text(
-                text = notification.title,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp,
-                color = Color.Black
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_launcher_background),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(100.dp)
+                    .align(Alignment.CenterHorizontally)
             )
-            Text(
-                text = notification.description,
-                fontSize = 14.sp,
-                color = Color.Gray
-            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = event.name)
+            Text(text = event.location)
         }
     }
 }
 
-data class NotificationData(
-    val imageUrl: String,
-    val title: String,
-    val description: String
+
+
+
+
+
+@Composable
+fun FavoriteItem() {
+    Card(
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.padding(8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_launcher_background),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(100.dp)
+                    .align(Alignment.CenterHorizontally)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = "Title")
+            Text(text = "Supporting text")
+        }
+    }
+}
+data class Event(
+    val id: String,
+    val name: String,
+    val location: String,
+    var favorite: Boolean = false
 )
 
+
 @Composable
-fun EventDetailScreen() {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp)
-    ) {
-        Image(
-            painter = rememberImagePainter("https://example.com/event-image.jpg"),
-            contentDescription = null,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(200.dp),
-            contentScale = ContentScale.Crop
-        )
+fun EventListScreen(navController: NavHostController) {
+    val viewModel: EventViewModel = viewModel()
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Event Title",
-            fontWeight = FontWeight.Bold,
-            fontSize = 24.sp,
-            color = Color.Black
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Date: September 15, 2024",
-            fontSize = 16.sp,
-            color = Color.Gray
-        )
-
-        Text(
-            text = "Time: 6:00 PM",
-            fontSize = 16.sp,
-            color = Color.Gray
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "This is a detailed description of the event. It provides information about what to expect and any other relevant details.",
-            fontSize = 16.sp,
-            color = Color.Black
-        )
-
-        Spacer(modifier = Modifier.weight(1f))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Button(
-                onClick = { /* Acción de favorito */ },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Favorite")
+    Column {
+        LazyColumn {
+            items(viewModel.events) { event ->
+                EventItem(event) {
+                    viewModel.selectedEvent.value = event
+                    navController.navigate("eventDetail/${event.id}")
+                }
             }
-
-            Spacer(modifier = Modifier.width(16.dp))
-
-            Button(
-                onClick = { /* Acción de comprar */ },
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Buy")
-            }
+        }
+        Button(onClick = { navController.navigate("profile") }) {
+            Text("Go to Profile")
         }
     }
 }
 
 @Composable
-fun ProfileScreen() {
-    val notificationsEnabled = remember { mutableStateOf(true) }
+fun EventItem(event: Event, onEventClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp)
+            .clickable(onClick = onEventClick), // Hacer clic en toda la tarjeta
+        shape = RoundedCornerShape(8.dp) // Esquinas redondeadas
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth()
+        ) {
+            // Aquí podrías reemplazar el contenido de la tarjeta con una imagen o cualquier otro contenido
+            Image(
+                painter = painterResource(id = R.drawable.ic_profile), // Puedes usar un recurso drawable o una imagen
+                contentDescription = "Event icon",
+                modifier = Modifier
+                    .size(60.dp)
+                    .clip(CircleShape)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 8.dp)
+            ) {
+                Text(text = event.name)
+                Text(text = event.location)
+            }
+            IconButton(onClick = onEventClick) {
+                Icon(imageVector = Icons.Default.ArrowForward, contentDescription = "Navigate to details")
+            }
+        }
+    }
+}
 
+
+@Composable
+fun ProfileScreen(name: String, navController: NavHostController) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -243,56 +237,152 @@ fun ProfileScreen() {
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Image(
-            painter = rememberImagePainter("https://example.com/profile-image.jpg"),
-            contentDescription = null,
+            painter = painterResource(id = R.drawable.ic_profile),
+            contentDescription = "Profile picture",
             modifier = Modifier
                 .size(120.dp)
-                .clip(CircleShape),
-            contentScale = ContentScale.Crop
+                .clip(CircleShape)
         )
-
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(text = name)
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text(
-            text = "Edit Profile",
-            fontSize = 18.sp,
-            color = Color.Blue
+        ProfileOption(
+            icon = Icons.Default.Edit,
+            label = "Edit Profile",
+            onClick = { /* Acción para editar perfil */ }
         )
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = "Reset Password",
-            fontSize = 18.sp,
-            color = Color.Blue
+        ProfileOption(
+            icon = Icons.Default.Lock,
+            label = "Reset Password",
+            onClick = { /* Acción para resetear contraseña */ }
         )
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = "Notifications",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Normal
-            )
-            Switch(
-                checked = notificationsEnabled.value,
-                onCheckedChange = { notificationsEnabled.value = it }
-            )
+        ProfileOption(
+            icon = Icons.Default.Notifications,
+            label = "Notifications",
+            onClick = { /* Acción para manejar notificaciones */ }
+        )
+        ProfileOption(
+            icon = Icons.Default.Favorite,
+            label = "Favorites",
+            onClick = { navController.navigate("favorites") }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(onClick = { navController.navigate("eventList") }) {
+            Text("Go to Event List")
         }
+    }
+}
 
-        Spacer(modifier = Modifier.height(24.dp))
 
-        Text(
-            text = "Favorites",
-            fontSize = 18.sp,
-            color = Color.Black
+@Composable
+fun ProfileOption(icon: ImageVector, label: String, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            modifier = Modifier.size(24.dp)
         )
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(text = label)
+    }
+}
+
+@Composable
+fun ProfileOption(icon: ImageVector, label: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(imageVector = icon, contentDescription = null)
+        Spacer(modifier = Modifier.width(16.dp))
+        Text(text = label)
+        Spacer(modifier = Modifier.weight(1f))
+        Icon(imageVector = Icons.Default.ArrowForward, contentDescription = null)
+    }
+}
+
+@Composable
+fun EventDetailScreen(eventId: String?, navController: NavHostController) {
+    val viewModel: EventViewModel = viewModel()
+    val event = viewModel.events.find { it.id == eventId }
+
+    event?.let {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(16.dp)
+        ) {
+            Text(text = "Location: ${event.location}")
+            Text(text = "Title: ${event.name}")
+            Spacer(modifier = Modifier.height(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Button(onClick = {
+                    viewModel.toggleFavorite(event)
+                }) {
+                    Text(text = if (event.favorite) "Unfavorite" else "Favorite")
+                }
+                Button(onClick = { /* Acción de compra */ }) {
+                    Text(text = "Buy")
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(onClick = { navController.navigate("eventList") }) {
+                Text(text = "Back")
+            }
+        }
+    }
+}
+
+
+
+class EventViewModel : ViewModel() {
+    // Lista mutable y observable de eventos
+    val events = mutableStateListOf(
+        Event("1", "Guns And Roses LA", "Los Angeles", favorite = true),
+        Event("2", "Guns And Roses Denver", "Denver"),
+        Event("3", "Guns And Roses New York", "New York")
+    )
+
+    var selectedEvent = mutableStateOf<Event?>(null)
+
+    // Método para marcar un evento como favorito
+    fun toggleFavorite(event: Event) {
+        val index = events.indexOf(event)
+        if (index >= 0) {
+            events[index] = events[index].copy(favorite = !event.favorite)
+        }
+    }
+}
+
+
+
+@Composable
+fun EventNavigation(navController: NavHostController, name: String) {
+    NavHost(navController = navController, startDestination = "eventList") {
+        composable("eventList") {
+            EventListScreen(navController)
+        }
+        composable("eventDetail/{eventId}") { backStackEntry ->
+            val eventId = backStackEntry.arguments?.getString("eventId")
+            EventDetailScreen(eventId = eventId, navController = navController)
+        }
+        composable("profile") {
+            ProfileScreen(name, navController) // Pasar el NavHostController
+        }
+        composable("favorites") {
+            FavoritesScreen(navController)
+        }
     }
 }
